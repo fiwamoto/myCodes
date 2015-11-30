@@ -1,0 +1,164 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var controller = HttpContext.Current.Request.RequestContext.RouteData.Values["controller"].ToString();
+}
+
+<script type="text/javascript">
+
+    $(document).ready(function () {
+
+        $('#tavolaLoadingContainer').hide();
+        $('#tavolaFiltersAddedContainer').hide();
+
+        $.ajax({
+            type: 'POST',
+            url: '@Url.Action("GetSearchableFields", controller)',
+        })
+            .success(function (data) {
+                $("#searchCriteriaCombobox option").remove(); // Remove all <option> child tags.
+                $.each(data.Result, function (index, item) { // Iterates through a collection
+                    $("#searchCriteriaCombobox").append("<option value='" + item.Key + "'>" + item.Value + "</option>");
+                });
+
+                $("#searchCriteriaCombobox").selectpicker('refresh');
+
+                $('[data-id="searchCriteriaCombobox"]').css('border-top-left-radius', '4px').css('border-bottom-left-radius', '4px').css('border-right-width', 0);
+
+                $('#tavolaFilterContainer ul.dropdown-menu').on('click', function () {
+                    $('#searchInput').focus();
+                });
+            });
+
+        $('#addNewConditionBtn').on('click', function (e) {
+            e.preventDefault();
+            $.ajax({
+                type: 'POST',
+                url: '@Url.Action("IncludeSearchableField", controller)/'
+                        + '?propertyName=' + $("#searchCriteriaCombobox").val()
+                        + '&propertyValue=' + $("#searchInput").val()
+            })
+                .success(function (index) {
+                    $.ajax({
+                        type: 'POST',
+                        datatype: 'html',
+                        url: '@Url.Action("FiltersAddedPartialView", controller)/'
+                            + '?index=' + index
+                            + '&field=' + $("#searchCriteriaCombobox").val()
+                            + '&value=' + $("#searchInput").val()
+                    })
+                        .success(function (data) {
+                            $('#filtersAdded').append(data);
+                            $('#searchInput').val('');
+                            $('#searchInput').focus();
+                            if (!$('#tavolaFiltersAddedContainer').is(":visible")) {
+                                $('#tavolaFiltersAddedContainer').slideDown('fast');
+                            }
+
+                            generateReport();
+                        });
+                });
+        });
+
+        $('#clearFiltersBtn').on('click', function (e) {
+            e.preventDefault();
+            $.ajax({
+                type: 'POST',
+                url: '@Url.Action("RemoveAllSearchableFields", controller)'
+            })
+            .success(function () {
+
+                $('#filtersAdded').empty();
+                $('#tavolaFiltersAddedContainer').slideUp('fast');
+
+                generateReport();
+            }
+            );
+        });
+
+    });
+
+    $(document).on("filterRemove", function (event, id) {
+        $.ajax({
+            type: 'POST',
+            url: '@Url.Action("RemoveSearchableField", controller)/'
+                    + '?index=' + id
+        })
+            .success(function () {
+
+                $("#filtersBadge" + id).remove();
+
+                if ($('#filtersAdded').children().length < 1) {
+                    $('#tavolaFiltersAddedContainer').slideUp('fast');
+                }
+
+                generateReport();
+            }
+            );
+    });
+
+        function generateReport() {
+            $('#tavolaContainer').fadeOut('fast', function () {
+                $('#tavolaLoadingContainer').fadeIn('normal', function () {
+                    $('#myTable').jtable('load', null, function () {
+                        $('#tavolaLoadingContainer').fadeOut('fast', function () {
+                            $('#tavolaContainer').fadeIn('normal');
+                        });
+                    });
+                });
+
+            });
+        }
+
+        function removeClick(filtersIndex) {
+            $(document).trigger("filterRemove", filtersIndex);
+        }
+
+</script>
+
+<div class="row" style="padding-bottom: 3px; padding-left: 5px; font-size: large; border-bottom: 1px; border-bottom-style: solid; border-bottom-color:lightgray">
+    @ViewBag.Title
+</div>
+<div class="row" style="padding-bottom: 3px; padding-left: 15px; padding-top: 15px; font-size: medium">
+    <span class="glyphicon glyphicon-search"></span>  Search
+</div>
+
+<div id="tavolaFilterContainer" class="row" style="padding-bottom: 10px; padding-left: 15px" >
+    <div class="input-group col-sm-12 col-md-8">
+        <span class="input-group-btn">
+            <select id="searchCriteriaCombobox" class="selectpicker" ></select>
+        </span>
+        <input id="searchInput" type="text" class="form-control" placeholder="Search..." aria-describedby="basic-addon1" />
+        <span class="input-group-btn">
+            <div id="addNewConditionBtn" class="btn btn-info" role="button" style="height: 34px;  border-radius: 4px; border-top-left-radius: 0; border-bottom-left-radius: 0">
+                <span class="glyphicon glyphicon-plus-sign"></span>
+                Add filter
+            </div>
+        </span>
+    </div>
+</div>
+<div id="tavolaFiltersAddedContainer">
+    <div class="row" style="padding-bottom: 3px; padding-left: 15px; font-size: medium">
+        <span class="glyphicon glyphicon-filter"></span>  Filters
+        <div id="clearFiltersBtn" class="btn btn-warning" role="button" style="padding: 2px; font-size: x-small; height: 20px; margin-left: 5px;">
+            <span class="glyphicon glyphicon-erase"></span>
+             Clear
+        </div>
+    </div>
+    <div class="row" style="padding-bottom: 10px">
+        <div class="col-sm-12 col-md-12">
+            <div id="filtersAdded"></div>
+        </div>
+    </div>
+</div>
+<div>
+    <div class="row" style="padding-bottom: 10px; padding-left: 15px; font-size: medium">
+        <span class="glyphicon glyphicon-blackboard"></span>  Tavola
+    </div>
+    <div id="tavolaContainer">
+        <div class="row" id="myTable" style="padding-right: 15px; padding-left: 15px;"></div>
+    </div>
+    <div id="tavolaLoadingContainer" style="height: 400px; text-align: center;">
+        <span class="glyphicon glyphicon-refresh glyphicon-spin" style="font-size: x-large"></span> <span style="font-size: x-large">  Loading report...</span>
+    </div>
+</div>
+@RenderBody()
