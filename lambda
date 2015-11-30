@@ -1,0 +1,62 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
+using ARCA.Domain.Attributes;
+using ARCA.Domain.Helpers;
+
+namespace ARCA.Core.Helpers
+{
+    public class General : IGeneral
+    {
+        public List<KeyValuePair<string,string>> GetSearchableProperties<T>()
+        {
+            PropertyInfo[] properties = typeof (T).GetProperties();
+            var propertyList = new List<KeyValuePair<string, string>>();
+
+            foreach (var property in properties)
+            {
+                if (!property.CanRead)
+                {
+                    continue;
+                }
+
+                object customAttibutes = property.GetCustomAttribute(typeof (SearchableAttribute), true);
+                var attribute = customAttibutes as SearchableAttribute;
+
+                if (attribute != null && attribute.Searchable)
+                {
+                    propertyList.Add(new KeyValuePair<string, string>(property.Name, attribute.Name));
+                }
+            }
+
+            return propertyList;
+        }
+
+        public Expression<Func<T, bool>> GenerateLambdaExpression<T>(string propertyName, string propertyValue)
+        {
+            const StringComparison comparison = StringComparison.InvariantCultureIgnoreCase;
+            var param = Expression.Parameter(typeof(T));
+            var propertyAccess = Expression.MakeMemberAccess(param, (Expression.Property(param, propertyName)).Member);
+            var indexOf = Expression.Call(propertyAccess, "IndexOf", null,
+
+            Expression.Constant(propertyValue, typeof(string)),
+            Expression.Constant(comparison));
+            var condition =
+                Expression.Lambda<Func<T, bool>>(Expression.GreaterThanOrEqual(indexOf, Expression.Constant(0)), param);
+
+            return condition;
+        }
+
+        public string GetPropertyDisplayName<T>(string propertyName)
+        {
+            var customAttibutes = typeof (T).GetProperty(propertyName)
+                .GetCustomAttribute(typeof (SearchableAttribute), true);
+            var attribute = customAttibutes as SearchableAttribute;
+
+            return attribute != null ? attribute.Name : string.Empty;
+        }
+    }
+}
